@@ -2,32 +2,49 @@ var express = require("express")
 var router = express.Router()
 var fs = require('fs')
 
-var mysql      = require("mysql");
-var connection = mysql.createConnection({
-	host     : "localhost",
-	user     : "root",
-	database : "vidao"
-});
- 
-// .*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d)$
+var mysql	  = require("promise-mysql");
+
+var dbOptions = {
+					host	 : "localhost",
+					user	 : "root",
+					database : "vidao"
+				}
+
+var digitRegex = /.*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d)$/;
+var digitReplace = "$1$2$3$4$5$6$7$8$9$10";
+
 
 router.post("/findOnPhones", function (req, res) {
+	var connection;
 
-	connection.connect();
+	mysql.createConnection(dbOptions).then(function (conn) {
 
-	var phones = req.body.phones.join("','");
-	phones = "('" + phones;
-	phones = phones + "')";
+		connection = conn;
 
-	var query = "select * from user where phone in " + phones + " order by id;";
-	console.log(query);
+		var phones = req.body.phones.join("','");
+		phones = "('" + phones;
+		phones = phones + "')";
 
-	connection.query(query, function (error, results, fields) {
-		if (error) throw error;
-		res.send(results);
+		var query = "select * from user where phone in " + phones + " order by id, name;";
+
+		return connection.query(query);
+
+	}).then(function (results) {
+
+		connection.end();
+
+		res.status(200).send(results);	
+
+	}).catch(function (error) {
+
+		connection.end();
+
+		console.log(error);
+
+		res.status(400).send(error);
+
 	});
 
-	connection.end();
 
 });
 
@@ -39,94 +56,151 @@ var tempTable 		= "CREATE TABLE `temp_user` ("
 
 router.post("/findOnContacts", function (req, res) {
 
-	connection.query(dropTempTable, function (error, results, fields) {
-		if (error) throw error;
-	});
+	var connection;
+	var query;
 
-	connection.query(tempTable, function (error, results, fields) {
-		if (error) throw error;
-	});
+	mysql.createConnection(dbOptions).then(function(conn) {
 
-	var contacts = req.body;
-	var len = contacts.length
+		connection = conn;
 
-	var valueArray = [];
+		return connection.query(dropTempTable);
 
-	for(let i = 0; i < len; i++) {
-		var contact = contacts[i];
-		for(let j = 0; j < contact.phones.length; j++) {
-			var phoneStr = contact.phones[j].replace(/.*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d)$/, "$1$2$3$4$5$6$7$8$9$10");
-			var value = "(" + "'" + contact.name.replace("'", "\\'") + "','" + phoneStr + "')";
-			valueArray.push(value);
+	}).then(function () {
+
+		return connection.query(tempTable);
+
+	}).then(function () {
+
+		var contacts = req.body;
+		var len = contacts.length
+
+		var valueArray = [];
+
+		for(let i = 0; i < len; i++) {
+
+			var contact = contacts[i];
+			for(let j = 0; j < contact.phones.length; j++) {
+				var phoneStr = contact.phones[j].replace(digitRegex, digitReplace);
+				var value = "(" + "'" + contact.name.replace("'", "\\'") + "','" + phoneStr + "')";
+				valueArray.push(value);
+			}
+
 		}
-	}
 
-	var query = "INSERT INTO `temp_user` values "
+		query = "INSERT INTO `temp_user` values ";
 
-	connection.query(query + valueArray.join(","), function (error, results, fields) {
-		if (error) throw error;
-	});
+		return connection.query(query + valueArray.join(","));
 
-	query = 	"SELECT user.id, user.name, user.phone FROM"
-				+ " user, temp_user"
-				+ " where user.name = temp_user.name"
-				+ " and user.phone = temp_user.phone"
-				+ " order by user.id"
+	}).then(function () {
 
-	connection.query(query, function (error, results, fields) {
-		if (error) throw error;
+		query = 	"SELECT user.id, user.name, user.phone FROM"
+					+ " user, temp_user"
+					+ " where user.name = temp_user.name"
+					+ " and user.phone = temp_user.phone"
+					+ " order by user.id, user.name";
+
+		return connection.query(query);
+
+	}).then(function (results) {
+
+		connection.query(dropTempTable);
+
+		connection.end();
+
 		res.status(200).send(results);
+
+	}).catch(function (error) {
+
+		connection.end();
+
+		console.log(error);
+
+		res.status(400).send(error);
+
 	});
-
-
-	connection.end();
 
 });
 
 
-router.get("/upload", function (req, res) {
-
-	var query = 'select count(*) from user'
-
-	connection.query(query, function (error, results, fields) {
-		if (error) throw error;
-		var count = results[0]["count(*)"]
-		if(count > 1200) {
-			res.sendStatus(304);
-			return;
-		}
-
-		fs.readFile('./data/contacts.json', 'utf8', function (err,data) {
-			if (err) {
-				return console.log(err);
-			}
-			var contacts = JSON.parse(data);
-			var len = contacts.length
-
-			var valueArray = [];
-
-			for(let i = 0; i < len; i++) {
-				var contact = contacts[i];
-
-				var randomIndex = Math.round(Math.random() * (contact.phones.length - 1));
-
-				var phoneStr = contact.phones[randomIndex].replace(/.*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d)$/, "$1$2$3$4$5$6$7$8$9$10");
-				var value = "(null," + "'" + contact.name.replace("'", "\\'") + "','" + phoneStr + "')";
-				valueArray.push(value);
-
-			}
-
-			query = "INSERT INTO `user` values "
-
-			connection.query(query + valueArray.join(","), function (error, results, fields) {
-				if (error) throw error;
-			});
-
-			res.sendStatus(200);
-
-			connection.end();
+fs.readFileAsync = function (filename) {
+	return new Promise(function(resolve, reject) {
+		fs.readFile(filename, function(err, data){
+			if (err) 
+				reject(err); 
+			else 
+				resolve(data);
 		});
 	});
+};
+
+router.get("/upload", function (req, res) {
+
+	var connection;
+	var query;
+
+	mysql.createConnection(dbOptions).then(function(conn) {
+
+		connection = conn;
+
+		query = 'select count(*) from user';
+
+		return connection.query(query);
+
+	}).then(function (results) {
+
+		var count = results[0]["count(*)"];
+
+		if(count > 1200) {
+
+			return res.sendStatus(304);
+
+		} else {
+
+			return fs.readFileAsync('./data/contacts.json', 'utf8')
+			.then(function (data) {
+
+				var contacts = JSON.parse(data);
+				var len = contacts.length
+
+				var valueArray = [];
+
+				for(let i = 0; i < len; i++) {
+
+						var contact = contacts[i];
+
+						var randomIndex = Math.round(Math.random() * (contact.phones.length - 1));
+
+						var phoneStr = contact.phones[randomIndex].replace(digitRegex, digitReplace);
+						var value = "(null," + "'" + contact.name.replace("'", "\\'") + "','" + phoneStr + "')";
+						valueArray.push(value);
+
+				}
+
+				query = "INSERT INTO `user` values ";
+
+				return connection.query(query + valueArray.join(","));
+
+			}).then(function () {
+
+				connection.end();
+
+				res.sendStatus(200);
+
+			}).catch(function (error) {
+
+				connection.end();
+
+				console.log(error);
+
+				res.status(400).send(error);
+
+			});
+
+		}
+
+	});
+
+
 	
 });
 
