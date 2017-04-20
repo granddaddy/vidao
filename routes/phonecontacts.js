@@ -2,13 +2,13 @@ var express = require("express")
 var router = express.Router()
 var fs = require('fs')
 
-var mysql	  = require("promise-mysql");
+var mysql = require("promise-mysql");
 
-var dbOptions = {
-					host	 : "localhost",
-					user	 : "root",
-					database : "vidao"
-				}
+var dbOptions = 	{
+						host	 : "localhost",
+						user	 : "root",
+						database : "vidao"
+					}
 
 var digitRegex = /.*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d)$/;
 var digitReplace = "$1$2$3$4$5$6$7$8$9$10";
@@ -21,29 +21,49 @@ router.post("/findOnPhones", function (req, res) {
 
 		connection = conn;
 
-		var phones = req.body.phones.join("','");
-		phones = "('" + phones;
-		phones = phones + "')";
+		if (!req.body.phones || !Array.isArray(req.body.phones)) {
 
-		var query = "select * from user where phone in " + phones + " order by id, name;";
+			res.status(400).send("Invalid request body");
 
-		return connection.query(query);
+		} else if (req.body.phones.length == 0) {
 
-	}).then(function (results) {
+			res.status(200).send([]);
 
-		connection.end();
+		} else {
+			var phones = req.body.phones.join("','");
+			phones = "('" + phones;
+			phones = phones + "')";
 
-		res.status(200).send(results);	
+			var query = "select * from user where phone in " + phones + " order by id, name;";
 
-	}).catch(function (error) {
+			connection.query(query)
+			.then(function (results) {
 
-		connection.end();
+				connection.end();
 
-		console.log(error);
+				res.status(200).send(results);	
 
-		res.status(400).send(error);
+			}).catch(function (error) {
+
+				try {
+					connection.end();
+				} catch(e) {
+					console.log("Connection was never started");
+				}
+
+				console.log(error);
+
+				res.status(400).send(error);
+
+			});
+
+		}
 
 	});
+
+
+
+
 
 
 });
@@ -79,6 +99,7 @@ router.post("/findOnContacts", function (req, res) {
 		for(let i = 0; i < len; i++) {
 
 			var contact = contacts[i];
+			
 			for(let j = 0; j < contact.phones.length; j++) {
 				var phoneStr = contact.phones[j].replace(digitRegex, digitReplace);
 				var value = "(" + "'" + contact.name.replace("'", "\\'") + "','" + phoneStr + "')";
@@ -103,7 +124,7 @@ router.post("/findOnContacts", function (req, res) {
 
 	}).then(function (results) {
 
-		connection.query(dropTempTable);
+		// connection.query(dropTempTable);
 
 		connection.end();
 
@@ -111,7 +132,11 @@ router.post("/findOnContacts", function (req, res) {
 
 	}).catch(function (error) {
 
-		connection.end();
+		try {
+			connection.end();
+		} catch(e) {
+			console.log("Connection was never started");
+		}
 
 		console.log(error);
 
@@ -120,7 +145,6 @@ router.post("/findOnContacts", function (req, res) {
 	});
 
 });
-
 
 fs.readFileAsync = function (filename) {
 	return new Promise(function(resolve, reject) {
@@ -133,6 +157,14 @@ fs.readFileAsync = function (filename) {
 	});
 };
 
+var dropNewUserTable 	= "DROP TABLE IF EXISTS user;"
+var newUserTable 		= "CREATE TABLE user ("
+						+ " `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,"
+						+ " `name` mediumtext,"
+						+ " `phone` varchar(10) DEFAULT NULL, "
+						+ " PRIMARY KEY (`id`)"
+						+ " ) AUTO_INCREMENT=1199"
+
 router.get("/upload", function (req, res) {
 
 	var connection;
@@ -142,66 +174,60 @@ router.get("/upload", function (req, res) {
 
 		connection = conn;
 
-		query = 'select count(*) from user';
+		return connection.query(dropNewUserTable);
 
-		return connection.query(query);
+	}).then(function () {
 
-	}).then(function (results) {
+		return connection.query(newUserTable);
 
-		var count = results[0]["count(*)"];
+	}).then(function () {
 
-		if(count > 1200) {
+		return fs.readFileAsync('./data/answer_id.json', 'utf8')
 
-			return res.sendStatus(304);
+	}).then(function (data) {
 
-		} else {
+		var contacts = JSON.parse(data);
+		var len = contacts.length
 
-			return fs.readFileAsync('./data/contacts.json', 'utf8')
-			.then(function (data) {
+		var valueArray = [];
 
-				var contacts = JSON.parse(data);
-				var len = contacts.length
+		for(let i = 0; i < len; i++) {
 
-				var valueArray = [];
+				var contact = contacts[i];
 
-				for(let i = 0; i < len; i++) {
+				var randomIndex = Math.round(Math.random() * (contact.phones.length - 1));
 
-						var contact = contacts[i];
-
-						var randomIndex = Math.round(Math.random() * (contact.phones.length - 1));
-
-						var phoneStr = contact.phones[randomIndex].replace(digitRegex, digitReplace);
-						var value = "(null," + "'" + contact.name.replace("'", "\\'") + "','" + phoneStr + "')";
-						valueArray.push(value);
-
-				}
-
-				query = "INSERT INTO `user` values ";
-
-				return connection.query(query + valueArray.join(","));
-
-			}).then(function () {
-
-				connection.end();
-
-				res.sendStatus(200);
-
-			}).catch(function (error) {
-
-				connection.end();
-
-				console.log(error);
-
-				res.status(400).send(error);
-
-			});
-
+				var id = contact.id;
+				var phoneStr = contact.phones[randomIndex].replace(digitRegex, digitReplace);
+				var value = "(" + id + "," + "'" + contact.name.replace("'", "\\'") + "','" + phoneStr + "')";
+				valueArray.push(value);
 		}
+
+		query = "INSERT INTO `user` values ";
+
+		return connection.query(query + valueArray.join(","));
+
+	}).then(function () {
+
+		connection.end();
+
+		res.sendStatus(200);
+
+	}).catch(function (error) {
+
+		try {
+			connection.end();
+		} catch(e) {
+			console.log("Connection was never started");
+		}
+
+		console.log(error);
+
+		res.status(400).send(error);
 
 	});
 
-
-	
 });
+
 
 module.exports = router
