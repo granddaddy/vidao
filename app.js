@@ -8,8 +8,8 @@ const SERVER_URL = process.env.SERVER_URL || "http://localhost";
 
 const phonecontacts = require("./routes/phonecontacts")
 
-app.use(bodyParser.urlencoded({ extended: true }))
-app.use(bodyParser.json())
+app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
+app.use(bodyParser.json({ limit: '50mb' }));
 
 app.use("/routes/phonecontacts", phonecontacts)
 
