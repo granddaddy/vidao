@@ -63,7 +63,8 @@ router.post("/findOnPhones", function (req, res) {
 		var phones = req.body.phones
 
 		for(let i = 0; i < phones.length; i++) {
-			phones[i] = phones[i].replace(/([^\\]'|^')/, "\\'")
+			phones[i] = phones[i].replace(/([^\\]'|^')/, "\\'");
+			phones[i] = phones[i].replace(digitRegex, digitReplace);
 		}
 
 		var phones = phones.join("','");

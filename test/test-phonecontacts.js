@@ -84,14 +84,24 @@ it('should return no matching entries phones on phone array with no matching /fi
 		});
 });
 
+var phones = 	[
+					"+1-(331)-683-6919",
+					"44-428-555-7758",
+					"+1 406 942 8091",
+					"+44 560.270/6008",
+					"+44 245/765/8336",
+					"(+44)-(533)-935-4993",
+					"914.8266-538"
+				]
+
+
 it('should return matching entries phones on phone array with matching /findOnPhones POST', function(done) {
 	this.timeout(15000);
 	setTimeout(done, 15000);
 
 	chai.request(server)
 		.post('/routes/phonecontacts/findOnPhones')
-		.send({ "phones": ["3316836919","4285557758","4069428091","5602706008","2457658336","5339354993","9148266538"]
- })
+		.send({ "phones": phones })
 		.end(function (err, res) {
 			res.should.have.status(200);
 			res.type.should.equal('application/json');
