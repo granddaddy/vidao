@@ -314,9 +314,10 @@ it('should still find matching numbers if any and not execute injected SQL /find
 
 			}).catch(function (error) {
 				try {
+					console.log(error);
 					done();
 				} catch (e) {
-
+					console.log(e);
 				}
 			});
 		});
