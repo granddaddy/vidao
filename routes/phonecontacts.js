@@ -168,8 +168,9 @@ router.post("/findOnContacts", function (req, res) {
 				var contact = contacts[i];
 
 				for(let j = 0; j < contact.phones.length; j++) {
-					var phoneStr = contact.phones[j].replace(digitRegex, digitReplace);
-					var value = "(" + "'" + contact.name.replace("'", "\\'").replace(/([^\\]'|^')/, "\\'") + "','" + phoneStr.replace(/([^\\]'|^')/, "\\'") + "')";
+					var phoneStr = contact.phones[j].replace(digitRegex, digitReplace).replace(/([^\\]'|^')/, "\\'");
+					var nameStr = contact.name.replace(/([^\\]'|^')/, "\\'")
+					var value = "(" + "'" + nameStr + "','" + phoneStr + "')";
 					valueArray.push(value);
 				}
 
