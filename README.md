@@ -1,12 +1,10 @@
 # Vidao server
 
 ## Testing
-```mocha
-```
+```mocha```
 
 ## Running Server
-```node app.js
-```
+```node app.js```
 
 ## Database
 Database found in ```'.sql/my_dump.sql'```
