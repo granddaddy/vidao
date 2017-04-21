@@ -169,7 +169,7 @@ router.post("/findOnContacts", function (req, res) {
 
 				for(let j = 0; j < contact.phones.length; j++) {
 					var phoneStr = contact.phones[j].replace(digitRegex, digitReplace);
-					var value = "(" + "'" + contact.name.replace("'", "\\'") + "','" + phoneStr + "')";
+					var value = "(" + "'" + contact.name.replace("'", "\\'").replace(/([^\\]'|^')/, "\\'") + "','" + phoneStr.replace(/([^\\]'|^')/, "\\'") + "')";
 					valueArray.push(value);
 				}
 
