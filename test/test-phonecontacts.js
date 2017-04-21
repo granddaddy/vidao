@@ -6,11 +6,12 @@ var should = chai.should();
 chai.use(chaiHttp);
 
 describe('findOnPhones', function() {
+	this.timeout(15000);
 	it('should return error on invalid JSON /findOnPhones POST');
 	it('should return error on invalid empty JSON /findOnPhones POST');
 	it('should return error on invalid JSON structure /findOnPhones POST');
 	it('should return no matching entries phones on empty phones array /findOnPhones POST');
-	it('should return matching entries phones on phone array with no matching /findOnPhones POST');
+	it('should return no matching entries phones on phone array with no matching /findOnPhones POST');
 	it('should return matching entries phones on phone array with matching /findOnPhones POST');
 });
 
@@ -58,7 +59,10 @@ it('should return no matching entries phones on empty phones array /findOnPhones
 		});
 });
 
-it('should return matching entries phones on phone array with no matching /findOnPhones POST', function(done) {
+it('should return no matching entries phones on phone array with no matching /findOnPhones POST', function(done) {
+	this.timeout(15000);
+	setTimeout(done, 15000);
+
 	chai.request(server)
 		.post('/routes/phonecontacts/findOnPhones')
 		.send({ "phones": ["1179357618"] })
@@ -73,6 +77,9 @@ it('should return matching entries phones on phone array with no matching /findO
 });
 
 it('should return matching entries phones on phone array with matching /findOnPhones POST', function(done) {
+	this.timeout(15000);
+	setTimeout(done, 15000);
+
 	chai.request(server)
 		.post('/routes/phonecontacts/findOnPhones')
 		.send({ "phones": ["3316836919","4285557758","4069428091","5602706008","2457658336","5339354993","9148266538"]

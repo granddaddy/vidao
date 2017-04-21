@@ -13,6 +13,16 @@ var dbOptions = 	{
 var digitRegex = /.*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d).*(\d)$/;
 var digitReplace = "$1$2$3$4$5$6$7$8$9$10";
 
+fs.readFileAsync = function (filename) {
+	return new Promise(function(resolve, reject) {
+		fs.readFile(filename, function(err, data){
+			if (err) 
+				reject(err); 
+			else 
+				resolve(data);
+		});
+	});
+};
 
 router.post("/findOnPhones", function (req, res) {
 	if (!req.body.phones || !Array.isArray(req.body.phones)) {
@@ -26,8 +36,27 @@ router.post("/findOnPhones", function (req, res) {
 	}
 
 	var connection;
+	var key;
+	var user_decrypted;
 
-	mysql.createConnection(dbOptions).then(function (conn) {
+	fs.readFileAsync('./secret/user_key', 'utf8')
+
+	.then(function (data) {
+
+		key = data;
+
+		return fs.readFileAsync('./sql/user_decrypt.sql', 'utf8')
+
+	}).then(function (data) {
+
+		user_decrypted = " (" + data.toString().replace(/<<KEY>>/g, "'" + key + "'") + ") user_decrypted ";
+
+	})
+	.then(function () {
+		
+		return mysql.createConnection(dbOptions);
+
+	}).then(function (conn) {
 
 		connection = conn;
 
@@ -35,36 +64,36 @@ router.post("/findOnPhones", function (req, res) {
 		phones = "('" + phones;
 		phones = phones + "')";
 
-		var query = "select * from user where phone in " + phones + " order by id, name;";
+		var query = "select * from " + user_decrypted + " where phone in " + phones + " order by id, name;";
 
-		connection.query(query)
-		.then(function (results) {
+		return connection.query(query);
+
+	}).then(function (results) {
+
+		connection.end();
+
+		res.status(200).send(results);	
+
+	}).catch(function (error) {
+
+		try {
 
 			connection.end();
 
-			res.status(200).send(results);	
+		} catch(e) {
 
-		}).catch(function (error) {
+			console.log(e);
 
-			try {
+		}
 
-				connection.end();
+		console.log(error);
 
-			} catch(e) {
-
-				console.log(e);
-
-			}
-
-			console.log(error);
-
-			res.status(400).send(error);
-
-		});
+		res.status(400).send(error);
 
 	});
 
 });
+
 
 var dropTempTable 	= "DROP TABLE IF EXISTS temp_user;"
 var tempTable 		= "CREATE TABLE `temp_user` ("
@@ -87,9 +116,29 @@ router.post("/findOnContacts", function (req, res) {
 	var connection;
 	var query;
 
+	var key;
+	var user_decrypted;
+
 	var idUsers;
 
-	mysql.createConnection(dbOptions).then(function(conn) {
+	fs.readFileAsync('./secret/user_key', 'utf8')
+
+	.then(function (data) {
+
+		key = data;
+
+		return fs.readFileAsync('./sql/user_decrypt.sql', 'utf8')
+
+	}).then(function (data) {
+
+		user_decrypted = " (" + data.toString().replace(/<<KEY>>/g, "'" + key + "'") + ") user_decrypted ";
+
+	})
+	.then(function () {
+		
+		return mysql.createConnection(dbOptions);
+
+	}).then(function(conn) {
 
 		connection = conn;
 
@@ -125,11 +174,11 @@ router.post("/findOnContacts", function (req, res) {
 			connection.query(query + valueArray.join(","))
 			.then(function () {
 
-				query = 	"SELECT user.id, user.name, user.phone FROM"
-							+ " user, temp_user"
-							+ " where user.name = temp_user.name"
-							+ " and user.phone = temp_user.phone"
-							+ " order by user.id, user.name";
+				query = 	"SELECT user_decrypted.id, user_decrypted.name, user_decrypted.phone FROM"
+							+ user_decrypted + ", temp_user"
+							+ " where user_decrypted.name = temp_user.name"
+							+ " and user_decrypted.phone = temp_user.phone"
+							+ " order by user_decrypted.id, user_decrypted.name";
 
 				return connection.query(query);
 
@@ -140,7 +189,7 @@ router.post("/findOnContacts", function (req, res) {
 				query = 	"SELECT * FROM"
 							+ " temp_user"
 							+ " where (temp_user.name, temp_user.phone) not in"
-							+ " (select name, phone from user)"
+							+ " (select name, phone from " + user_decrypted +")"
 							+ " order by name, phone";
 
 				return connection.query(query);
@@ -177,17 +226,6 @@ router.post("/findOnContacts", function (req, res) {
 	});
 
 });
-
-// fs.readFileAsync = function (filename) {
-// 	return new Promise(function(resolve, reject) {
-// 		fs.readFile(filename, function(err, data){
-// 			if (err) 
-// 				reject(err); 
-// 			else 
-// 				resolve(data);
-// 		});
-// 	});
-// };
 
 // var dropNewUserTable 	= "DROP TABLE IF EXISTS user;"
 // var newUserTable 		= "CREATE TABLE user ("
