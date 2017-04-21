@@ -3,6 +3,14 @@ var chaiHttp = require('chai-http');
 var server = require('../app');
 var should = chai.should();
 
+var mysql = require("promise-mysql");
+
+var dbOptions = 	{
+						host	 : "localhost",
+						user	 : "root",
+						database : "vidao"
+					}
+
 chai.use(chaiHttp);
 
 describe('findOnPhones', function() {
@@ -89,6 +97,8 @@ it('should return matching entries phones on phone array with matching /findOnPh
 			res.type.should.equal('application/json');
 			res.should.be.json;
 			res.body.should.be.a('array');
+
+			// length is known to be 7 from manual SQL query
 			res.body.should.have.lengthOf(7);
 
 			res.body[0].should.have.property('id');
@@ -113,7 +123,7 @@ describe('findOnContacts', function() {
 	this.timeout(15000);
 	it('should return error on invalid JSON /findOnContacts POST');
 	it('should return error on invalid empty JSON /findOnContacts POST');
-	// it('should return error on invalid JSON structure /findOnContacts POST');
+	it('should return error on invalid JSON structure /findOnContacts POST');
 	it('should return matching entries with id and the rest with just names /findOnContacts POST');
 });
 
@@ -207,3 +217,94 @@ it('should return matching entries with id and the rest with just names /findOnC
 
 });
 
+describe('SQLInjection', function() {
+	it('should still find matching numbers if any and not execute injected SQL /findOnPhones POST');
+	it('should still find matching numbers if any and not execute injected SQL /findOnContacts POST');
+});
+
+var sqlInjection = [	
+				"\';DROP TABLE user;", 
+				"\\';DROP TABLE user;", 
+				"\";DROP TABLE user;", 
+				"\";DROP TABLE user;", 
+				";DROP TABLE user;", 
+				"\;DROP TABLE user;", 
+				"\\;DROP TABLE user;",
+				"\;\'DROP TABLE user;",
+				"\;\"DROP TABLE user;",
+				"\n\;\"DROP TABLE user;",
+				"\n;DROP TABLE user;",
+			]
+
+it('should still find matching numbers if any and not execute injected SQL /findOnPhones POST', function(done) {
+	
+	chai.request(server)
+		.post('/routes/phonecontacts/findOnPhones')
+		.send({ "phones": sqlInjection })
+		.end(function (err, res) {
+			res.should.have.status(200);
+			res.type.should.equal('application/json');
+			res.should.be.json;
+			res.body.should.be.a('array');
+			res.body.should.have.lengthOf(0);
+
+			mysql.createConnection(dbOptions).
+			then(function (conn) {
+
+				var query 	= "select * from information_schema.tables"
+							+ " where table_schema = 'vidao'"
+							+ " and table_name = 'user'"
+
+				return conn.query(query);
+
+			}).then(function (results) {
+
+				results.should.have.lengthOf(1);
+
+				done();
+
+			});
+
+		});
+
+it('should still find matching numbers if any and not execute injected SQL /findOnContacts POST', function(done) {
+
+	var contacts = []
+
+	for (let i = 0; i < sqlInjection.length; i++) {
+		contacts.push({ "name": sqlInjection[i], "phones": sqlInjection });
+	}
+
+	chai.request(server)
+		.post('/routes/phonecontacts/findOnContacts')
+		.send(contacts)
+		.end(function (err, res) {
+			res.should.have.status(200);
+			res.type.should.equal('application/json');
+			res.should.be.json;
+			res.body.should.be.a('array');
+			res.body.should.have.lengthOf(0);
+
+			mysql.createConnection(dbOptions).
+			then(function (conn) {
+
+				var query 	= "select * from information_schema.tables"
+							+ " where table_schema = 'vidao'"
+							+ " and table_name = 'user'"
+
+				return conn.query(query);
+
+			}).then(function (results) {
+
+				results.should.have.lengthOf(1);
+
+				done();
+
+			});
+
+		});
+
+});
+
+
+});

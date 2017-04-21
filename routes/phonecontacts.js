@@ -60,7 +60,13 @@ router.post("/findOnPhones", function (req, res) {
 
 		connection = conn;
 
-		var phones = req.body.phones.join("','");
+		var phones = req.body.phones
+
+		for(let i = 0; i < phones.length; i++) {
+			phones[i] = phones[i].replace(/([^\\]'|^')/, "\\'")
+		}
+
+		var phones = phones.join("','");
 		phones = "('" + phones;
 		phones = phones + "')";
 
@@ -196,7 +202,7 @@ router.post("/findOnContacts", function (req, res) {
 
 			}).then(function (results) {
 
-				// connection.query(dropTempTable);
+				connection.query(dropTempTable);
 
 				connection.end();
 
